@@ -1,0 +1,78 @@
+name: CDK Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'cdk/**'
+      - '.github/workflows/cdk-deploy.yml'
+    branches:
+      - main
+
+env:
+  CDK_DEFAULT_REGION: ap-northeast-1
+  CDK_APP_PATH: cdk/bin/app.ts
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write  # OIDCでAssumeRoleするために必要
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'  # CDKに必要なNodeバージョン（適宜変更）
+
+      - name: Install dependencies
+        run: |
+          cd cdk
+          npm ci
+
+      - name: Code Quality Check - Prettier
+        run: |
+          cd cdk
+          npm run format:check
+
+      - name: Code Quality Check - ESLint
+        run: |
+          cd cdk
+          npm run lint
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.CDK_DEPLOY_ROLE }}
+          aws-region: ${{ env.CDK_DEFAULT_REGION }}
+
+
+      - name: Run CDK Synth ( security check)
+        env:
+          CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ${{ env.CDK_DEFAULT_REGION }}
+        run: |
+          cd cdk
+          npx cdk synth
+
+      - name: Run CDK diff (infra diff check)
+        env:
+          CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ${{ env.CDK_DEFAULT_REGION }}
+        run: |
+          cd cdk
+          npx cdk diff
+
+      - name: Deploy CDK
+        env:
+          CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ${{ env.CDK_DEFAULT_REGION }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          cd cdk
+          npx cdk deploy --all --require-approval never

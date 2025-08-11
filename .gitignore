@@ -1,0 +1,9 @@
+# AWS
+ .aws/
+*.pem 
+*.key 
+
+# Environment
+.env 
+.env.local 
+.env.production

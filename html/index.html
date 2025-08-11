@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>htmlgame.fsitlab — htmlゲーム実験場</title>
+  <meta name="description" content="HTML + JSで作る小さなWebゲームを、CloudFront + S3 で配信。GitHub Actions でCI/CD。">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="nav">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <h1>htmlgame.fsitlab</h1>
+        <span class="badge">個人実験</span>
+      </div>
+      <nav class="links">
+        <!-- TODO: GitHubリポジトリURLに差し替え -->
+        <a class="btn" href="https://github.com/FigureSkateIT/htmlgame" target="_blank" rel="noopener">GitHubを見る</a>
+        <a class="btn primary" href="#games">ゲーム一覧へ</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <h2>HTML + JS で作る小さなWebゲームを、AWSにデプロイして遊ぶ。</h2>
+      <p>
+        CloudFront + S3 で配信し、GitHub Actionsで CI/CD。<br>
+        趣味の実験として生成AIも活用しながら作成しています。
+      </p>
+    </section>
+
+    <div class="section-title" id="games">
+      <h2 style="margin:0;font-size:18px">ゲーム一覧</h2>
+      <span class="badge">随時追加</span>
+    </div>
+
+    <!-- ゲームカード一覧 -->
+    <div class="grid">
+      <!-- Snake -->
+      <a class="card" href="/snake/">
+        <div class="thumb" aria-hidden="true"></div>
+        <div class="meta">
+          <h3>Snake — Time Attack <span class="pill">アクション</span></h3>
+          <p>シンプルなスネーク。1000点タイムアタック、スピード効果アイテム、ローカル記録。</p>
+        </div>
+        <div class="go"><span class="btn">Play</span></div>
+      </a>
+
+      <!-- 追加のゲームが増えたらこの形式で増やす -->
+      <!--
+      <a class="card" href="/tetris/">
+        <div class="thumb"></div>
+        <div class="meta">
+          <h3>Tetris-like <span class="pill">パズル</span></h3>
+          <p>（予定）落ち物系。スコアとリーダーボード。</p>
+        </div>
+        <div class="go"><span class="btn">Play</span></div>
+      </a>
+      -->
+    </div>
+
+    <!-- 技術的説明（折り畳み） -->
+    <details id="tech">
+      <summary>技術メモ（CloudFront + S3 / GitHub Actions / 将来方針）</summary>
+      <div class="content">
+        <div class="kvs">
+          <div class="kv"><div class="k">配信</div><div class="v">Amazon CloudFront + S3（OAC/OAI）</div></div>
+          <div class="kv"><div class="k">基盤CI/CD</div><div class="v">GitHub Actions（cdk synth→cdkデプロイ）</div></div>
+          <div class="kv"><div class="k">フロントCI/CD</div><div class="v">GitHub Actions（ビルド→S3同期→CFキャッシュ無効化）</div></div>
+          <div class="kv"><div class="k">ゲーム</div><div class="v">HTML + CSS + JS（フレームワーク無し）</div></div>
+          <div class="kv"><div class="k">コード</div><div class="v"><a href="https://github.com/FigureSkateIT/htmlgame" target="_blank" rel="noopener">GitHubリポジトリ</a></div></div>
+        </div>
+
+    </details>
+
+    <footer>
+      <div>© fsitlab.htmlgame</div>
+      <div>Made for fun with HTML + JS + AWS</div>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,82 @@
+name: Html Deploy
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["CDK Deploy"]
+    types: [completed]
+    branches: [ main ]
+  push:
+    paths:
+      - 'html/**'
+      - '.github/workflows/html-deploy.yml'
+    branches:
+      - main
+
+env:
+  AWS_DEFAULT_REGION: ap-northeast-1
+  FRONT_DEPLOY_ROLE: htmlgame-front-deploy-role-for-github
+  SSM_S3_BUCKET: /htmlgame/s3-bucket
+  SSM_CF_DIST_ID: /htmlgame/cf-dist-id
+
+
+jobs:
+  # --- push で来たとき、infraの変更が混じってたらスキップする ---
+  detect_changes:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    outputs:
+      front: ${{ steps.filter.outputs.front }}
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            front:
+              - 'html/**'
+              - '.github/workflows/deploy-front.yml'
+            infra:
+              - 'cdk/**'
+
+
+  build-and-deploy:
+    if: >
+      ${{
+        github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+        || github.event_name == 'push' && needs.detect_changes.outputs.front == 'true' && needs.detect_changes.outputs.infra != 'true'
+        || github.event_name == 'workflow_dispatch'
+      }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write  # OIDCでAssumeRoleするために必要
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{env.FRONT_DEPLOY_ROLE }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Read SSM params
+        id: ssm
+        run: |
+          S3_BUCKET=$(aws ssm get-parameter --name '${{ env.SSM_S3_BUCKET }}' --query 'Parameter.Value' --output text)
+          CF_DIST_ID=$(aws ssm get-parameter --name '${{ env.SSM_CF_DIST_ID }}' --query 'Parameter.Value' --output text)
+          echo "S3_PATH=s3://$S3_BUCKET" >> $GITHUB_ENV
+          echo "CF_DIST_ID=$CF_DIST_ID" >> $GITHUB_ENV
+
+      - name: Sync to S3 bucket
+        run: |
+          cd html
+          aws s3 sync ./ ${{ env.S3_PATH }} --delete --exclude "uploads/*"
+
+
+      - name: Invalidate CloudFront Cache
+        run: aws cloudfront create-invalidation --distribution-id ${{ env.CF_DIST_ID }} --paths "/*"
