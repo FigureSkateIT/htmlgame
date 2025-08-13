@@ -66,6 +66,7 @@
     firstInputPending = true;              // ← 追加
     statusEl.textContent = 'Ready — 操作で開始';
     updateGameTimer(0);
+    document.body.classList.remove('game-playing');
     }
 
     function spawnInitialFoods() {
@@ -111,6 +112,7 @@
         playing = true;
         startTime = performance.now();       // ★ ここでタイマースタート
         statusEl.textContent = 'Playing';
+        document.body.classList.add('game-playing');
         return;
     } 
 
@@ -349,6 +351,7 @@
 
     updateBestUI();
     statusEl.textContent = '🎉 1000点達成!';
+    document.body.classList.remove('game-playing');
     } 
     function gameOver(){
     dead = true; playing = false;
@@ -363,6 +366,7 @@
     }
 
     statusEl.innerHTML = '<span class="bad">Game Over</span>';
+    document.body.classList.remove('game-playing');
     }
 
     function clearLocalRecords(){
