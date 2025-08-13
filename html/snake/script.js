@@ -21,9 +21,9 @@
     let bestTimeMs = +(localStorage.getItem(STORAGE.bestTimeMs) || 0); // 0は未記録
     let firstInputPending = false; // 初回入力待ちフラグ（タップ・クリックで開始）
 
-    // Populate base speed selector (6..20)
-    const savedBase = +localStorage.getItem('snakeBaseSpeed') || 10;
-    for (let s=6; s<=20; s++) {
+    // Populate base speed selector (10..200)
+    const savedBase = +localStorage.getItem('snakeBaseSpeed') || 100;
+    for (let s=10; s<=200; s+=10) {
     const opt = document.createElement('option');
     opt.value = s; opt.textContent = s;
     if (s === savedBase) opt.selected = true;
@@ -41,8 +41,8 @@
     // Food config
     const FOOD_TYPES = {
     normal: { color: getVar('--food'), points:20, effect: null },
-    fast:   { color: getVar('--food-fast'), points:50, effect: {delta:+5, duration:3000} },
-    slow:   { color: getVar('--food-slow'), points:30, effect: {delta:-5, duration:3000} },
+    fast:   { color: getVar('--food-fast'), points:50, effect: {type:'fast', duration:3000} },
+    slow:   { color: getVar('--food-slow'), points:30, effect: {type:'slow', duration:3000} },
     };
 
     let snake, dir, nextDir, foods, score, baseSpeed, speed, playing, dead;
@@ -51,7 +51,7 @@
     let last = performance.now(), accumulator = 0; // for movement
 
     function initState() {
-    baseSpeed = +baseSpeedSel.value || 10;
+    baseSpeed = +baseSpeedSel.value || 100;
     localStorage.setItem('snakeBaseSpeed', baseSpeed);
     speed = baseSpeed; updateSpeedBadge();
       // ★ 初期長さは頭だけ
@@ -215,9 +215,23 @@
 
     function applyEffect(effect) {
     if (!effect) return;
-    effectDelta = effect.delta; // override with latest effect
     effectUntil = performance.now() + effect.duration;
-    speed = clamp(baseSpeed + effectDelta, 2, 30);
+    
+    if (effect.type === 'fast') {
+        // スピード50アップまたは2倍のうち、上昇量が少ないほう
+        const option1 = baseSpeed + 50;
+        const option2 = baseSpeed * 2;
+        speed = Math.min(option1, option2);
+        effectDelta = speed - baseSpeed;
+    } else if (effect.type === 'slow') {
+        // スピード50ダウンまたは半減のうち、減少量が少ないほう
+        const option1 = baseSpeed - 50;
+        const option2 = baseSpeed / 2;
+        speed = Math.max(option1, option2);
+        effectDelta = speed - baseSpeed;
+    }
+    
+    speed = clamp(speed, 10, 1000);
     updateSpeedBadge();
     }
 
@@ -248,7 +262,10 @@
         maintainFoodCounts();
         if (score >= 1000) { score = 1000; return victory(); }
     } else {
-        snake.pop();
+        // 蛇の長さが2未満なら尻尾を削除しない（方向制限のため）
+        if (snake.length > 2) {
+            snake.pop();
+        }
     }
     }
 
@@ -372,8 +389,8 @@
         updateGameTimer(now - startTime);
         clearEffectIfExpired(); updateEffectTimer();
 
-        // Movement at variable speed (cells per second)
-        const step = 1000 / speed; // ms per cell
+        // Movement at variable speed (cells per 10 seconds)
+        const step = 10000 / speed; // ms per cell (10秒当たりのマス目進行数)
         accumulator += dt;
         while (accumulator >= step) { accumulator -= step; tick(); }
     }
