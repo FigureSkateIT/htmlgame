@@ -198,7 +198,11 @@
     baseSpeedSel.addEventListener('change', () => {
     // Save preference immediately; will apply next Start
     const val = +baseSpeedSel.value; localStorage.setItem('snakeBaseSpeed', val);
-    if (!playing && !dead) { currentSpeedEl.textContent = `Speed: ${val}`; }
+    if (!playing && !dead) { 
+        baseSpeed = val;
+        speed = val;
+        updateSpeedBadge();
+    }
     });
 
     function updateSpeedBadge(){ currentSpeedEl.textContent = `Speed: ${speed}`; }
