@@ -65,6 +65,8 @@
     playing = false; dead = false; accumulator = 0;
     firstInputPending = true;              // ← 追加
     statusEl.textContent = 'Ready — 操作で開始';
+    const status2El = document.getElementById('status2');
+    if (status2El) status2El.textContent = 'Ready';
     updateGameTimer(0);
     document.body.classList.remove('game-playing');
     }
@@ -112,6 +114,8 @@
         playing = true;
         startTime = performance.now();       // ★ ここでタイマースタート
         statusEl.textContent = 'Playing';
+        const status2El = document.getElementById('status2');
+        if (status2El) status2El.textContent = 'Playing';
         document.body.classList.add('game-playing');
         canvas.focus();
         canvas.tabIndex = 0;
@@ -226,15 +230,22 @@
             updateSpeedBadge();
         }
     }
-    function updateScore(){ scoreEl.textContent = score; }
-    function updateGameTimer(ms){ gameTimerEl.textContent = (ms/1000).toFixed(1)+"s"; }
-    function updateEffectTimer(){
-    if (effectUntil > performance.now()) {
-        const remain = Math.max(0, effectUntil - performance.now());
-        effectTimerEl.textContent = (remain/1000).toFixed(1)+"s";
-    } else {
-        effectTimerEl.textContent = '—';
+    function updateScore(){ 
+        scoreEl.textContent = score; 
+        const score2El = document.getElementById('score2');
+        if (score2El) score2El.textContent = score;
     }
+    function updateGameTimer(ms){ 
+        gameTimerEl.textContent = (ms/1000).toFixed(1)+"s"; 
+        const gameTimer2El = document.getElementById('gameTimer2');
+        if (gameTimer2El) gameTimer2El.textContent = (ms/1000).toFixed(1)+"s";
+    }
+    function updateEffectTimer(){
+        const text = effectUntil > performance.now() ? 
+            (Math.max(0, effectUntil - performance.now())/1000).toFixed(1)+"s" : '—';
+        effectTimerEl.textContent = text;
+        const effectTimer2El = document.getElementById('effectTimer2');
+        if (effectTimer2El) effectTimer2El.textContent = text;
     }
 
     function applyEffect(effect) {
@@ -353,6 +364,8 @@
 
     updateBestUI();
     statusEl.textContent = '🎉 1000点達成!';
+    const status2El = document.getElementById('status2');
+    if (status2El) status2El.textContent = '🎉 クリア!';
     document.body.classList.remove('game-playing');
     canvas.blur();
     canvas.tabIndex = -1;
@@ -370,6 +383,8 @@
     }
 
     statusEl.innerHTML = '<span class="bad">Game Over</span>';
+    const status2El = document.getElementById('status2');
+    if (status2El) status2El.innerHTML = '<span class="bad">Game Over</span>';
     document.body.classList.remove('game-playing');
     canvas.blur();
     canvas.tabIndex = -1;

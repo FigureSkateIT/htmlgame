@@ -29,11 +29,20 @@
 
       <canvas id="game" width="420" height="420" aria-label="Snake board" role="img"></canvas>
       
-      <div class="dpad" aria-label="On-screen controls">
-        <button class="btn-dir up"    data-dir="UP"    aria-label="上">▲</button>
-        <button class="btn-dir left"  data-dir="LEFT"  aria-label="左">◀</button>
-        <button class="btn-dir right" data-dir="RIGHT" aria-label="右">▶</button>
-        <button class="btn-dir down"  data-dir="DOWN"  aria-label="下">▼</button>
+      <div class="game-controls">
+        <div class="dpad" aria-label="On-screen controls">
+          <button class="btn-dir up"    data-dir="UP"    aria-label="上">▲</button>
+          <button class="btn-dir left"  data-dir="LEFT"  aria-label="左">◀</button>
+          <button class="btn-dir right" data-dir="RIGHT" aria-label="右">▶</button>
+          <button class="btn-dir down"  data-dir="DOWN"  aria-label="下">▼</button>
+        </div>
+        
+        <div class="game-info">
+          <div class="info-item"><span class="label">スコア</span><strong><span id="score2">0</span> / 1000</strong></div>
+          <div class="info-item"><span class="label">ゲームタイマー</span><strong id="gameTimer2">0.0s</strong></div>
+          <div class="info-item"><span class="label">効果タイマー</span><strong id="effectTimer2">—</strong></div>
+          <div class="info-item"><span class="label">状態</span><strong id="status2">Ready</strong></div>
+        </div>
       </div>
 
       <div class="row" style="justify-content:center; margin-top:10px;">
