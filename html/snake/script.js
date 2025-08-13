@@ -113,6 +113,8 @@
         startTime = performance.now();       // ★ ここでタイマースタート
         statusEl.textContent = 'Playing';
         document.body.classList.add('game-playing');
+        canvas.focus();
+        canvas.tabIndex = 0;
         return;
     } 
 
@@ -352,6 +354,8 @@
     updateBestUI();
     statusEl.textContent = '🎉 1000点達成!';
     document.body.classList.remove('game-playing');
+    canvas.blur();
+    canvas.tabIndex = -1;
     } 
     function gameOver(){
     dead = true; playing = false;
@@ -367,6 +371,8 @@
 
     statusEl.innerHTML = '<span class="bad">Game Over</span>';
     document.body.classList.remove('game-playing');
+    canvas.blur();
+    canvas.tabIndex = -1;
     }
 
     function clearLocalRecords(){
