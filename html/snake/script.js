@@ -174,6 +174,11 @@
         case 'ArrowUp': case 'w': case 'W': setDirection(DIR.UP); break;
         case 'ArrowRight': case 'd': case 'D': setDirection(DIR.RIGHT); break;
         case 'ArrowDown': case 's': case 'S': setDirection(DIR.DOWN); break;
+        case ' ': initState(); break; // スペースキーでリセット
+        case 'r': case 'R': showRecords(); break; // Rキーで最近のスコア
+        case 't': case 'T': showLeaderboard(); break; // Tキーでベスト10
+        case '-': case '_': changeSpeed(-10); break; // -キーでスピードダウン
+        case '+': case '=': changeSpeed(+10); break; // +キーでスピードアップ
     }
     }, {passive:true});
 
@@ -206,6 +211,17 @@
     });
 
     function updateSpeedBadge(){ currentSpeedEl.textContent = `Speed: ${speed}`; }
+    
+    function changeSpeed(delta) {
+        if (!playing && !dead) {
+            const newSpeed = Math.max(10, Math.min(200, baseSpeed + delta));
+            baseSpeedSel.value = newSpeed;
+            baseSpeed = newSpeed;
+            speed = newSpeed;
+            localStorage.setItem('snakeBaseSpeed', newSpeed);
+            updateSpeedBadge();
+        }
+    }
     function updateScore(){ scoreEl.textContent = score; }
     function updateGameTimer(ms){ gameTimerEl.textContent = (ms/1000).toFixed(1)+"s"; }
     function updateEffectTimer(){
@@ -368,12 +384,19 @@
     }
 
     // snake body
+    const bodyColor = getSnakeColor();
+    const headColor = getSnakeHeadColor();
     for (let i = snake.length-1; i >= 1; i--) {
-        const s = snake[i]; drawCell(s.x, s.y, 0.7, getVar('--snake'));
+        const s = snake[i]; drawCell(s.x, s.y, 0.7, bodyColor);
     }
     const head = snake[0];
-    drawCell(head.x, head.y, 0.9, getVar('--snake-head'));
+    drawCell(head.x, head.y, 0.9, headColor);
     drawEyes(head);
+    
+    // クリア演出
+    if (dead && score >= 1000) {
+        drawVictoryEffect();
+    }
     }
 
     function drawGrid(){
@@ -385,6 +408,37 @@
 
     function drawCell(cx, cy, padScale, color){ const pad=(1-padScale)*CELL*0.5; ctx.fillStyle=color; ctx.fillRect(cx*CELL+pad, cy*CELL+pad, CELL-pad*2, CELL-pad*2); }
     function drawEyes(head){ const cx=head.x*CELL + CELL/2, cy=head.y*CELL + CELL/2; const ex=(dir.x!==0?dir.x:0)*(CELL*0.18), ey=(dir.y!==0?dir.y:0)*(CELL*0.18); ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.beginPath(); ctx.arc(cx-4+ex, cy-4+ey, 3, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(cx+4+ex, cy-4+ey, 3, 0, Math.PI*2); ctx.fill(); }
+    
+    function getSnakeColor() {
+        if (effectUntil > performance.now()) {
+            return effectDelta > 0 ? getVar('--snake-fast') : getVar('--snake-slow');
+        }
+        return getVar('--snake');
+    }
+    
+    function getSnakeHeadColor() {
+        if (effectUntil > performance.now()) {
+            return effectDelta > 0 ? getVar('--snake-fast-head') : getVar('--snake-slow-head');
+        }
+        return getVar('--snake-head');
+    }
+    
+    function drawVictoryEffect() {
+        // 半透明の背景
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(0, 0, W, H);
+        
+        // 大きな絵文字
+        ctx.font = '80px serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ffd700';
+        ctx.fillText('🎉', W/2, H/2 - 20);
+        
+        // クリア文字
+        ctx.font = 'bold 36px sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('クリア！', W/2, H/2 + 40);
+    }
 
     function loop(now){
     const dt = now - last; last = now;

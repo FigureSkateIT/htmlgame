@@ -2,6 +2,7 @@
 --bg: #0f1220; --panel:#171a2b; --fg:#e6e9f2; --accent:#6ee7ff; --danger:#ff5a7a;
 --grid:#22263c; --snake:#8ef78e; --snake-head:#7be57b;
 --food:#ffd166; --food-fast:#fca5a5; --food-slow:#7dd3fc;
+--snake-fast:#c4e97a; --snake-fast-head:#a3d65c; --snake-slow:#22c55e; --snake-slow-head:#16a34a;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
@@ -45,3 +46,7 @@ box-shadow: 0 6px 14px rgba(0,0,0,.25);
 touch-action: manipulation;
 }
 .btn-dir:active { transform: translateY(1px); }
+
+.food-normal { color: var(--food); }
+.food-fast { color: var(--food-fast); }
+.food-slow { color: var(--food-slow); }
