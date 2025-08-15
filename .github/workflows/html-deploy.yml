@@ -16,8 +16,8 @@ on:
 env:
   AWS_DEFAULT_REGION: ap-northeast-1
   FRONT_DEPLOY_ROLE: htmlgame-front-deploy-role-for-github
-  SSM_S3_BUCKET: /htmlgame/s3-bucket
-  SSM_CF_DIST_ID: /htmlgame/cf-dist-id
+  SSM_S3_BUCKET: /htmlgame/front-stack/s3-bucket
+  SSM_CF_DIST_ID: /htmlgame/front-stack/cf-dist-id
 
 
 jobs:

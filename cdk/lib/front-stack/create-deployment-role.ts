@@ -57,12 +57,12 @@ export function createDeploymentRole(scope: Construct, props: DeploymentRoleProp
 
   // SSMパラメータ作成
   new ssm.StringParameter(scope, 'S3BucketParam', {
-    parameterName: `/${CONSTANTS.PROJECT_NAME.toLowerCase()}/s3-bucket`,
+    parameterName: CONSTANTS.SSM_PARAMETERS.S3_BUCKET,
     stringValue: props.bucket.bucketName,
   });
 
   new ssm.StringParameter(scope, 'CfDistIdParam', {
-    parameterName: `/${CONSTANTS.PROJECT_NAME.toLowerCase()}/cf-dist-id`,
+    parameterName: CONSTANTS.SSM_PARAMETERS.CF_DIST_ID,
     stringValue: props.distribution.distributionId,
   });
 

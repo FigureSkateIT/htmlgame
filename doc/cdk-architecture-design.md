@@ -1,6 +1,6 @@
 # CDK アーキテクチャ設計書
 
-最終更新: 2025-08-12
+最終更新: 2025-01-27
 
 ## 概要
 
@@ -160,6 +160,23 @@ const certificateArn = getCrossRegionSsmParameter(this, 'CertificateArnLookup', 
 - **共通設定**: `config/shared.ts`で一元管理
 - **型安全性**: TypeScriptによる設定値の型チェック
 
+## SSMパラメータ命名規則
+
+### 命名規則
+```
+/htmlgame/{スタック名}/{パラメータ名}
+```
+
+### 定義済みパラメータ
+- `/htmlgame/us-stack/certificate-arn`: CloudFront用SSL証明書ARN
+- `/htmlgame/front-stack/s3-bucket`: 静的サイト用S3バケット名
+- `/htmlgame/front-stack/cf-dist-id`: CloudFrontディストリビューションID
+
+### 管理方針
+- 全てのSSMパラメータ名は`config/shared.ts`で一元管理
+- CDKコードは`CONSTANTS.SSM_PARAMETERS`を参照
+- GitHub Actionsも同じ命名規則を使用
+
 ## 技術的特徴
 
 ### CDK実装のベストプラクティス
@@ -167,6 +184,7 @@ const certificateArn = getCrossRegionSsmParameter(this, 'CertificateArnLookup', 
 2. **インターフェース定義**: 明示的なProps型定義
 3. **再利用可能性**: 共通ユーティリティの部品化
 4. **テスタビリティ**: 単体テスト可能な構造
+5. **設定の一元管理**: `config/shared.ts`による設定値の統一管理
 
 ### コード品質
 - **CDK Nag**: セキュリティルールの自動チェック
