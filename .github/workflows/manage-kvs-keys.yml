@@ -4,8 +4,10 @@ on:
   schedule:
     # 毎日午前2時（UTC）に自動ローテーション
     - cron: '0 2 * * *'
-  workflow_call:
-    # CDKデプロイ後に呼び出し可能
+  workflow_run:
+    workflows: ["CDK Deploy"]
+    types: [completed]
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       force_reset:

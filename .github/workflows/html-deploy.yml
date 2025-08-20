@@ -12,6 +12,7 @@ on:
       - '.github/workflows/html-deploy.yml'
     branches:
       - main
+      - dev
 
 env:
   AWS_DEFAULT_REGION: ap-northeast-1
