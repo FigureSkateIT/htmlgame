@@ -76,3 +76,8 @@ jobs:
         run: |
           cd cdk
           npx cdk deploy --all --require-approval never
+
+  manage-kvs-keys:
+    needs: deploy
+    uses: ./.github/workflows/manage-kvs-keys.yml
+    secrets: inherit

@@ -69,6 +69,17 @@ export class FrontStack extends cdk.Stack {
       distribution: distribution,
     });
 
+    // SSMパラメータにエクスポート
+    new cdk.aws_ssm.StringParameter(this, 'SsmS3Bucket', {
+      parameterName: CONSTANTS.SSM_PARAMETERS.S3_BUCKET,
+      stringValue: bucket.bucketName,
+    });
+
+    new cdk.aws_ssm.StringParameter(this, 'SsmCfDistId', {
+      parameterName: CONSTANTS.SSM_PARAMETERS.CF_DIST_ID,
+      stringValue: distribution.distributionId,
+    });
+
     // 確認用にCloudFrontのURLを出力
     new cdk.CfnOutput(this, 'my-Website-URL', {
       value: 'https://' + distribution.distributionDomainName,

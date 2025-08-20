@@ -1,0 +1,20 @@
+[
+  {
+    "gameName": "snake",
+    "sort": [
+      { "by": "score", "dir": "desc" },
+      { "by": "timeMs", "dir": "asc" },
+      { "by": "updatedAt", "dir": "desc" }
+    ],
+    "topN": 100
+  },
+  {
+    "gameName": "tetris",
+    "sort": [
+      { "by": "score", "dir": "desc" },
+      { "by": "timeMs", "dir": "desc" },
+      { "by": "updatedAt", "dir": "desc" }
+    ],
+    "topN": 100
+  }
+]

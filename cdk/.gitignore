@@ -1,6 +1,7 @@
 *.js
 !jest.config.js
-!.eslintrc.js
+!eslint.config.js
+!asset/cf-funcs/*.js
 *.d.ts
 node_modules
 

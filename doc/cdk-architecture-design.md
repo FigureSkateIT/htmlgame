@@ -185,6 +185,7 @@ const certificateArn = getCrossRegionSsmParameter(this, 'CertificateArnLookup', 
 3. **再利用可能性**: 共通ユーティリティの部品化
 4. **テスタビリティ**: 単体テスト可能な構造
 5. **設定の一元管理**: `config/shared.ts`による設定値の統一管理
+6. **命名規則の統一**: ファイル名と関数名の一致（例：`create-s3-bucket.ts` → `createS3Bucket`）
 
 ### コード品質
 - **CDK Nag**: セキュリティルールの自動チェック

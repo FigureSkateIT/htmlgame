@@ -1,4 +1,8 @@
-# 【要件定義】
+# Score API 設計書（実装済み）
+
+> **実装状況**: 本設計に基づくAPIが完全実装済みです。DynamoDBテーブル、Lambda関数、HTTP API、CloudFront Functionsがすべて仕様通り実装されています。
+
+## 【要件定義】
 
 - 最小コスト（固定費ほぼゼロ、従量も最小化）。WAFは使わない。
 - CloudFront Functions による **二段階トークン**（/get-start, /get-end）。検証OKのみ API へ到達。
@@ -19,8 +23,8 @@
 ## 1) DynamoDB テーブル図（実データ例つき）
 
 - **テーブル**: `ScoreTable`
-- **PK** (string): `G#${gameId}#P#${period}` 例: `G#snake#P#2025-08`, `G#snake#P#ALL`
-- **SK** (string): `U#${userId}`  （ユーザIDをSKに置く）
+- **PK** : `gameName` (string): `G#${gameId}#P#${period}` 例: `G#snake#P#2025-08`, `G#snake#P#ALL`
+- **SK** : `userId` (string): `U#${userId}`  （ユーザIDをSKに置く）
 - **二次インデックス**: **無し（LSI/GSIとも不使用）**
 
 **Attributes**
@@ -114,14 +118,16 @@ if (better) {
 ### ルール定義（S3のGameConfig）
 
 ```json
-{
+[
+{"gameName":"nameofgame",
   "sort": [
     { "by": "score",   "dir": "desc" },
     { "by": "timeMs",  "dir": "asc"  },
     { "by": "updatedAt","dir": "desc" }
   ],
   "topN": 100
-}
+  },
+]
 ```
 
 - `updatedAt` は任意の第3キー（タイブレーク用）。**KVSに入れる必要はない**。
@@ -236,11 +242,11 @@ function buildComparator(rules:{by:'score'|'timeMs'|'updatedAt', dir:'asc'|'desc
 
 - 並び順（order）… **S3 の GameConfig**（GitHub 管理のJSON）
 - 閾値（thr）…… **ScoreTable の実データ**から **日次 **``** Lambda** が再計算
-- **KVS** は `cfgthr#g:${gameId}#p:${period}` に **order+thr を一体**で保持（5.2参照）
+- **KVS** は `htmlgame-thr#g:${gameId}#p:${period}` に **order+thr を一体**で保持（5.2参照）
 
 **更新トリガ**：
 
-- **標準（最小運用）**：日次の `trim-top` が TopN（既定100）を計算 → **100位の値から「thr」を導出** → **KVS **``** を更新**（ETag楽観ロック）。
+- **標準（最小運用）**：日次の `trim-top` が TopN（既定100）を計算 → **100位の値から「thr」を導出** → **KVS **`htmlgame-thr`** を更新**（ETag楽観ロック）。
 - **拡張（任意）**：`put-score` 採用時に EventBridge で非同期再計算してKVSを準リアルタイム更新（※ホットパスでは実施しない）。
 
 **更新方法（API）**：
@@ -258,8 +264,8 @@ function buildComparator(rules:{by:'score'|'timeMs'|'updatedAt', dir:'asc'|'desc
 
 ### キー命名（ネームスペース）
 
-- **ゲーム×期間のルール＋閾値**: `cfgthr#g:${gameId}#p:${period}`\
-  例: `cfgthr#g:snake#p:2025-08`, `cfgthr#g:snake#p:ALL`
+- **ゲーム×期間のルール＋閾値**: `htmlgame-thr#g:${gameId}#p:${period}`\
+  例: `htmlgame-thr#g:snake#p:2025-08`, `htmlgame-thr#g:snake#p:ALL`
 
 > ※キーを一つにまとめることで CloudFront Functions からの参照を1回にし、KVSの容量・更新回数を節約します。
 
@@ -269,14 +275,14 @@ function buildComparator(rules:{by:'score'|'timeMs'|'updatedAt', dir:'asc'|'desc
 {
   "ver": 1,
   "order": [
-    ["score",  "desc"],
-    ["timeMs", "asc" ],
-    ["date",   "desc"]
+    ["score","desc"],
+    ["timeMs","asc"],
+    ["updatedAt","desc"]
   ],
   "thr": [
-    { "score":  { "min": 100 } },
-    { "timeMs": { "max": 20000 } },
-    { "date":   { "minEpoch": 1723708800 } }
+    { "score": 100 },
+    { "timeMs": 20000 },
+    { "updatedAt": "2025-08-15T12:05:00Z" }
   ],
   "topN": 100,
   "updatedAt": "2025-08-15T12:05:00Z"
@@ -284,10 +290,8 @@ function buildComparator(rules:{by:'score'|'timeMs'|'updatedAt', dir:'asc'|'desc
 ```
 
 - `order`: **優先順位配列**（上から第1キー, 第2キー...）。`"asc"|"desc"`。
-- `thr`: **同じ並び**でしきい値を記載。各要素は使用するフィールドのみを持ち、未使用なら省略可。
-  - `desc` のフィールドは ``** / **``（これ未満は即拒否）
-  - `asc` のフィールドは ``** / **``（これ超過は即拒否）
-- `date` は数値エポックを採用（Functions内での比較が簡単）。
+- `thr`: **同じ並び**でしきい値を記載。各要素は使用するフィールドのみを持ち、未使用なら省略可。100位相当の値を直接格納。
+- `updatedAt` はISO8601文字列を採用（実装全体で統一）。
 - `topN`: 一応保持（参考）。
 - `ver`/`updatedAt`: バージョンと更新時刻。
 
@@ -296,19 +300,16 @@ function buildComparator(rules:{by:'score'|'timeMs'|'updatedAt', dir:'asc'|'desc
 ### CloudFront Functions（前段フィルタ）での利用例（擬似）
 
 ```js
-const raw = kv.get(`cfgthr#g:${gameId}#p:${period}`);
+const raw = kv.get(`htmlgame-thr#g:${gameId}#p:${period}`);
 if (raw) {
   const cfg = JSON.parse(raw); // { order, thr, topN }
-  const by = (f) => ({ score: +incoming.score, timeMs: +incoming.timeMs, date: +incoming.epoch })[f];
-  for (let i = 0; i < cfg.order.length; i++) {
-    const [field, dir] = cfg.order[i];
-    const limit = cfg.thr[i]?.[field];
-    if (!limit) continue; // 閾値未設定ならスキップ
-    if (dir === 'desc' && limit.min != null && by(field) < limit.min) deny();
-    if (dir === 'asc'  && limit.max != null && by(field) > limit.max) deny();
-    if (field === 'date' && limit.minEpoch && by('date') < limit.minEpoch) deny();
-    if (field === 'date' && limit.maxEpoch && by('date') > limit.maxEpoch) deny();
+  const current = { score: +incoming.score, timeMs: +incoming.timeMs, updatedAt: incoming.updatedAt };
+  const bottom = {};
+  for (let i = 0; i < cfg.order.length && i < cfg.thr.length; i++) {
+    const [field] = cfg.order[i];
+    if (cfg.thr[i][field] !== undefined) bottom[field] = cfg.thr[i][field];
   }
+  if (!isBetterThanBottom(current, bottom, cfg.order)) deny();
 }
 // ここを通ったらAPIへフォワード（最終判定はOriginで）
 ```
@@ -320,22 +321,28 @@ if (raw) {
 - **S3のGameConfig**（`order`のみ／真ソース）をロードし、
   1. 全件を `order` に従って比較（`updatedAt`等はアイテムの属性で参照）
   2. **TopN** を切り出し
-  3. 100位の値から ``** を再計算**（`desc`→min、`asc`→max、date→minEpoch/maxEpoch）し、KVSの `cfgthr#g:...` を更新
+  3. 100位の値から **thr** を再計算**（100位の実際の値をそのまま格納）し、KVSの `htmlgame-thr#g:...` を更新
 
 ### 互換と移行
 
-- 旧 `thr#...` 形式からの移行時は、当面 **両キーを併存**（Functionsで `cfgthr#...` → 無ければ `thr#...` を参照）し、完全移行できたら旧キーを削除。
+- 旧 `thr#...` 形式からの移行時は、当面 **両キーを併存**（Functionsで `htmlgame-thr#...` → 無ければ `thr#...` を参照）し、完全移行できたら旧キーを削除。
 
 ---
 
-## 5.3) CI/CD の環境変数の扱い（※CloudFront Functionsの環境変数ではありません）
+## 5.3) 秘密鍵管理（KVS方式・実装済み）
 
-- CI（GitHub Actions 等）で**ビルド時に一時環境変数**を使って、鍵や設定をテンプレートに注入するのはOK。
-- **注意**：
-  - CIのログへ**値を出力しない**（`set -x`禁止、echo禁止）。
-  - アーティファクトはKMS暗号化＆短期保管。
-  - OIDCでAssumeRoleし、最小権限ロールでS3/KVS更新のみ許可。
-- CloudFront Functions は**実行時の環境変数をサポートしない**ため、鍵は「ビルド時にコードへ定数として注入」し、**二重鍵ローテーション**で無停止切替を行う（前節参照）。
+- **KVSへの秘密鍵保存**：CloudFront Functionsは実行時に環境変数をサポートしないため、KVSに秘密鍵を保存。
+- **CI/CD自動ローテーション**：
+  - GitHub Actionsで日次自動ローテーション実行
+  - OIDCでAssumeRoleし、最小権限ロールでKVS更新のみ許可
+  - `k_current`と`k_prev`の二重鍵でゼロダウンタイム切替
+- **セキュリティ**：
+  - CIのログへ鍵値を出力しない設計
+  - CloudTrailでKVSアクセスを監査
+  - 閲覧権限の最小化
+- **実装ファイル**：
+  - `.github/workflows/manage-kvs-keys.yml` - 統合KVS鍵管理（初期化・ローテーション）
+  - `scripts/init-kvs-keys.sh` - ローカル初期設定スクリプト
 
 ---
 
@@ -369,13 +376,13 @@ if (raw) {
 - **WAF**：月額**約\$5/アカウント**は**個人運用では重い**。今回の脅威モデルは **Functionsの前段防御＋APIGWスロットリング** で十分緩和可能。将来必要なら付加できる。
 - **LSI/GSI**：Top100運用でPK内が小さく、**アプリ側ソートで十分**。GSIは**後付け可能**なので、今は採用しない（LSIは後付け不可）。
 - **同期Lambda（DDB→KVS）**：更新頻度が低く、**日次trim-top**で十分。Functions増は運用負荷になるため採用しない。
-- **SecretsのKVS格納**：KVSは公開寄りのストア。**秘密鍵はデプロイ時に関数へ注入**（二重鍵ローテーション）し、KVSには置かない。
+- **秘密鍵のKVS管理**：**KVSに秘密鍵を格納**し、CI/CDで自動ローテーション。`k_current`と`k_prev`の二重鍵でゼロダウンタイム切替を実現。
 
 ### トレードオフと対策
 
 - **KVS伝播遅延**（数秒〜十数秒）：前段で漏れても**Originで最終判定**。
 - **CloudFrontの課金はゼロではない**：それでも**API/Lambda/DBより安い**ため、前段で落とす価値が大きい。
-- **秘密の注入**：関数コードに含まれるため、**閲覧権限の最小化＋CloudTrail監査＋自動ローテーション**でリスク低減。
+- **秘密鍵の管理**：KVSに格納し、**閲覧権限の最小化＋CloudTrail監査＋自動ローテーション**でリスク低減。GitHub Actionsで日次自動ローテーション実行。
 
 ---
 

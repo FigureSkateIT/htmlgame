@@ -1,0 +1,106 @@
+name: Manage CloudFront Functions KVS Keys
+
+on:
+  schedule:
+    # 毎日午前2時（UTC）に自動ローテーション
+    - cron: '0 2 * * *'
+  workflow_call:
+    # CDKデプロイ後に呼び出し可能
+  workflow_dispatch:
+    inputs:
+      force_reset:
+        description: 'Force reset existing keys'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  manage-keys:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          
+      - name: Get KVS ARN from SSM
+        id: get-kvs-arn
+        run: |
+          KVS_ARN=$(aws ssm get-parameter --name "/htmlgame/score-api/kvs-arn" --query Parameter.Value --output text 2>/dev/null || echo "")
+          if [ -z "$KVS_ARN" ]; then
+            echo "KVS ARN not found in SSM. Skipping key management."
+            echo "kvs_exists=false" >> $GITHUB_OUTPUT
+          else
+            echo "kvs_arn=$KVS_ARN" >> $GITHUB_OUTPUT
+            echo "kvs_exists=true" >> $GITHUB_OUTPUT
+            echo "Retrieved KVS ARN: $KVS_ARN"
+          fi
+          
+      - name: Check existing keys and determine action
+        if: steps.get-kvs-arn.outputs.kvs_exists == 'true'
+        id: check-keys
+        env:
+          KVS_ARN: ${{ steps.get-kvs-arn.outputs.kvs_arn }}
+        run: |
+          set +e
+          aws cloudfront-keyvaluestore get-key --kvs-arn "$KVS_ARN" --key k_current >/dev/null 2>&1
+          KEY_EXISTS=$?
+          set -e
+          
+          if [ $KEY_EXISTS -eq 0 ]; then
+            echo "Keys exist. Will rotate."
+            echo "action=rotate" >> $GITHUB_OUTPUT
+          else
+            echo "No keys found. Will initialize."
+            echo "action=initialize" >> $GITHUB_OUTPUT
+          fi
+          
+          # force_resetが指定された場合は初期化
+          if [ "${{ github.event.inputs.force_reset }}" = "true" ]; then
+            echo "Force reset requested. Will initialize."
+            echo "action=initialize" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Initialize or rotate keys
+        if: steps.get-kvs-arn.outputs.kvs_exists == 'true'
+        env:
+          KVS_ARN: ${{ steps.get-kvs-arn.outputs.kvs_arn }}
+          ACTION: ${{ steps.check-keys.outputs.action }}
+        run: |
+          set -euo pipefail
+          
+          echo "Starting key $ACTION for KVS: $KVS_ARN"
+          
+          # ETag取得
+          ETAG=$(aws cloudfront-keyvaluestore describe-key-value-store \
+            --kvs-arn "$KVS_ARN" --query ETag --output text)
+          echo "Current ETag: $ETAG"
+          
+          if [ "$ACTION" = "rotate" ]; then
+            # 既存の鍵をローテーション
+            CURRENT_KEY=$(aws cloudfront-keyvaluestore get-key \
+              --kvs-arn "$KVS_ARN" --key k_current --query Value --output text)
+            echo "Retrieved current key for rotation"
+            
+            # 現在の鍵をprevに移動
+            RESP=$(aws cloudfront-keyvaluestore put-key \
+              --kvs-arn "$KVS_ARN" --key k_prev --value "$CURRENT_KEY" --if-match "$ETAG")
+            ETAG=$(echo "$RESP" | jq -r .ETag)
+            echo "Moved current key to prev, new ETag: $ETAG"
+          fi
+          
+          # 新しい鍵を生成
+          NEW_KEY=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')
+          echo "Generated new key"
+          
+          # 新しい鍵をcurrentに設定
+          aws cloudfront-keyvaluestore put-key \
+            --kvs-arn "$KVS_ARN" --key k_current --value "$NEW_KEY" --if-match "$ETAG"
+          
+          echo "Key $ACTION completed successfully"

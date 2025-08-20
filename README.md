@@ -161,10 +161,116 @@ graph LR
 
 バグ報告や機能提案はGitHub Issuesでお気軽にどうぞ！
 
-## 7. 🔮 将来の展望
+## 7. 🎯 実装済み機能（スコアAPI）
 
-将来的には **API Gateway + Lambda + DynamoDB** でスコア登録機能を実装したいと考えています。その際、不正スコア登録防止のために、**二段階トークン方式**（CloudFront Functionsによる前段検証）の導入を検討しています。
+**API Gateway + Lambda + DynamoDB** によるスコア登録機能が実装済みです。
 
-## 8. 📜 ライセンス
+### 7.1 アーキテクチャ
+- **静的サイト配信**: CloudFront + S3 + Route53
+- **スコアAPI**: API Gateway (HTTP API) + Lambda + DynamoDB
+- **セキュリティ**: CloudFront Functions による二段階トークン認証
+- **鍵管理**: KeyValueStore (KVS) による自動ローテーション
+
+### 7.2 実装済み機能
+
+#### 静的サイト配信 (FrontStack)
+- CloudFront Distribution
+- S3 Bucket (OAC保護)
+- SSL証明書 (ACM)
+- Route53 DNS設定
+- GitHub Actions デプロイ
+
+#### スコアAPI (ScoreApiStack)
+- HTTP API (PUT/GET)
+- Lambda関数 (put-score, get-ranking, trim-top)
+- DynamoDB テーブル
+- CloudFront Functions (二段階トークン)
+- EventBridge 日次スケジュール
+
+#### セキュリティ機能
+- 二段階トークン認証 (get-start → get-end → validate)
+- HMAC-SHA256 署名検証
+- KVS による鍵の自動ローテーション
+- 前段フィルタリング (CloudFront Functions)
+
+### 7.3 追加デプロイ手順
+
+#### スコアAPIスタックのデプロイ
+```bash
+# スコアAPIスタック
+cdk deploy HtmlgameScoreApiStack
+```
+
+#### KVS鍵管理
+
+**自動初期化**: CDKデプロイ後に自動でKVS鍵が初期化されます。
+
+**手動実行**:
+1. GitHub ActionsのWorkflowsタブから「Manage CloudFront Functions KVS Keys」を実行
+2. 鍵をリセットする場合は`force_reset`をtrueに設定
+
+**ローカルスクリプト**:
+```bash
+# SSMからKVS ARNを取得
+KVS_ARN=$(aws ssm get-parameter --name "/htmlgame/score-api/kvs-arn" --query Parameter.Value --output text)
+
+# 初期鍵設定
+./scripts/init-kvs-keys.sh $KVS_ARN
+```
+
+### 7.4 API仕様
+
+#### エンドポイント
+- `GET /api/get-start` - 開始トークン取得
+- `GET /api/get-end` - 終了トークン取得  
+- `PUT /api/scores/{gameId}/{period}/{userId}` - スコア登録
+- `GET /api/ranking/{gameId}/{period}` - ランキング取得
+
+#### 認証フロー
+1. ゲーム開始時に `/api/get-start` でトークン取得
+2. ゲーム終了時に `/api/get-end` で終了トークン取得
+3. スコア送信時に両トークンとHMAC署名で認証
+
+### 7.5 運用
+
+#### 鍵ローテーション
+- 毎日午前2時(UTC)に自動実行
+- CDKデプロイ後に自動実行
+- 手動実行: GitHub Actions の "Manage CloudFront Functions KVS Keys"
+
+#### 監視
+- CloudWatch Logs (Lambda, API Gateway)
+- CloudWatch Metrics (DynamoDB, CloudFront)
+
+#### データ管理
+- 日次でTop100以外のスコアを自動削除
+- KVS閾値の自動更新
+
+### 7.6 ドキュメント
+
+- [CDKアーキテクチャ設計](doc/cdk-architecture-design.md)
+- [スコアAPI設計](doc/score_api.md)
+- [二段階トークン設計](doc/two-stage-token-api-design.md)
+- [CloudFront Functions鍵管理](doc/cloudfront-functions-secret-key-management.md)
+
+### 7.7 コスト最適化
+
+- HTTP API使用 (REST APIより安価)
+- CloudFront Functions (Lambda@Edgeより安価)
+- DynamoDB PAY_PER_REQUEST
+- インデックス無し設計
+- Top100データ維持
+
+個人運用で月額数十円〜数百円程度を想定。
+
+## 8. 🔮 将来の展望
+
+現在、基本的なスコアAPI機能は実装済みです。将来的には以下の機能拡張を検討しています：
+
+- より高度な不正検知機能
+- リアルタイムランキング更新
+- 複数ゲーム対応の管理画面
+
+## 9. 📜 ライセンス
 
 [MIT License](LICENSE) - 自由に使用、改変、配布可能です。

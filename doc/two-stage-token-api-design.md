@@ -1,5 +1,7 @@
 # 二段階トークン方式 API 設計（CloudFront Functions だけで前段完結）
 
+> **実装状況**: 本設計に基づくCloudFront Functionsが `asset/cf-funcs/` に実装済みです。get-start.js、get-end.js、validate.jsの3つの関数が仕様通り実装されています。
+
 ## 0. 目的とスコープ
 - **目的**：  
   ① JSを実行しない巡回Bot・curl系の**不正スコア送信を前段でブロック**  
@@ -46,13 +48,13 @@ PUT /scores/{day}/{player}
 - 形式：`<base64url(payload)>.<hmac>`  
 - 署名：`hmac = HMAC_SHA256( K1 , base64url(payload) )`  
 - エンコード：**base64url**（`+`,`/`,`=` を使わない）
-- **K1** は Functions コード内に埋め込み（公開レポジトリには含めない）
+- **K1** は **KVSに保存**し、Functionsは実行時に`kv.get('k_current')`で取得。フォールバックで`k_prev`も参照。
 
 ### 2.2 `T_start`（/get-start 応答）
 ```json
 payload_start = {
   "sid": "<ランダム>",           // セッションID
-  "t_start": 1733870000000,     // Edge時刻(ms)
+  "t_start": "2025-01-15T12:00:00.000Z", // Edge時刻(ISOString)
   "max_dur_s": 1800,            // 最大プレイ 30分など
   "ver": 1
 }
@@ -64,7 +66,7 @@ payload_start = {
 ```json
 payload_end = {
   "sid": "<同じsid>",
-  "t_end": 1733870185000,       // Edge時刻(ms)
+  "t_end": "2025-01-15T12:03:05.000Z", // Edge時刻(ISOString)
   "ver": 1
 }
 ```
@@ -113,9 +115,9 @@ payload_end = {
   1. `T_start` / `T_end` の **HMAC 正当性**（K1 で再計算）  
   2. **sid 三点一致**：`T_start.sid == T_end.sid == Cookie.game_sid`  
   3. **時間整合**：  
-     - `0 < t_end - t_start ≤ max_dur_s*1000`  
-     - `now_edge - t_end ≤ 90,000 ms`（提出猶予）  
-     - （任意）`t_end - t_start ≥ min_dur_s*1000`  
+     - `0 < (new Date(t_end) - new Date(t_start)) ≤ max_dur_s*1000`  
+     - `Date.now() - new Date(t_end).getTime() ≤ 90,000 ms`（提出猶予）  
+     - （任意）`(new Date(t_end) - new Date(t_start)) ≥ min_dur_s*1000`  
   4. **スコア署名一致**：`X-Sig == HMAC(T_end, player|score|day|sid)`  
   5. **追加**：Origin/Referer 必須、`X-Score` 範囲、`Content-Length` 上限
 - **検証 OK**：**そのままオリジンへフォワード**（API GW 側で保存）  
@@ -187,7 +189,7 @@ await fetch(`/scores/${day}/${encodeURIComponent(player)}`, {
 - **レスポンスを Functions 側で生成**可能（/get-start, /get-end はオリジン不要）  
 - **キャッシュ無効**：`Cache-Control: no-store`  
 - **ヘッダ合計サイズ**：API GW 目安 10KB 程度。今回のトークンと署名なら余裕  
-- **秘密鍵 K1**：関数コードに埋め込み（公開しない）、または KeyValueStore（機微情報は慎重に）
+- **秘密鍵 K1**：**KeyValueStore (KVS) に保存**し、CI/CDで自動ローテーション。`k_current`と`k_prev`の二重鍵でゼロダウンタイム切替を実現。
 
 ---
 

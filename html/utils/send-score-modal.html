@@ -1,0 +1,36 @@
+<!-- utils/send-score-modal.html -->
+<div class="backdrop">
+  <div class="card" role="dialog" aria-modal="true">
+    <div class="title">スコア送信</div>
+
+    <div class="row">
+      <div class="label">ゲーム</div>
+      <div class="value js-gameName"></div>
+    </div>
+    <div class="row">
+      <div class="label">スコア</div>
+      <div class="value js-score"></div>
+    </div>
+    <div class="row">
+      <div class="label">タイム</div>
+      <div class="value js-time"></div>
+    </div>
+    <div class="row">
+      <div class="label">タイムスタンプ</div>
+      <div class="value js-ts"></div>
+    </div>
+
+    <div class="row">
+      <div class="label">プレイヤー名</div>
+      <div class="value">
+        <input class="input js-name" type="text" maxlength="20" />
+        <div class="hint">重複可・最大20文字</div>
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button class="btn cancel">キャンセル</button>
+      <button class="btn send">送信</button>
+    </div>
+  </div>
+</div>

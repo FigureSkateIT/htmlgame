@@ -3,4 +3,4 @@ node_modules/
 *.d.ts
 cdk.context.json
 package-lock.json
-.eslintrc.js
+asset/cf-funcs/*.js

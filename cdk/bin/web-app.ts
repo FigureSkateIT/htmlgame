@@ -4,6 +4,7 @@ import * as cdk from 'aws-cdk-lib';
 import { AwsSolutionsChecks } from 'cdk-nag';
 import { FrontStack } from '../lib/front-stack';
 import { UsStack } from '../lib/us-stack';
+import { ScoreApiStack } from '../lib/score-api-stack';
 import { CONSTANTS } from '../config/shared';
 
 // 環境変数から必要な情報を取得
@@ -39,4 +40,10 @@ const frontStack = new FrontStack(app, `${CONSTANTS.PROJECT_NAME}FrontStack`, {
   githubRepo: githubRepo,
 });
 
+// Score APIスタックの作成
+const scoreApiStack = new ScoreApiStack(app, `${CONSTANTS.PROJECT_NAME}ScoreApiStack`, {
+  env: env,
+});
+
 frontStack.addDependency(usStack);
+scoreApiStack.addDependency(frontStack);

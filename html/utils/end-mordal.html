@@ -1,0 +1,55 @@
+<!-- ゲーム終了ポップアップ：Backdrop -->
+<div id="end-backdrop" class="end-backdrop" hidden></div>
+
+<!-- ゲーム終了ポップアップ：Dialog -->
+<div id="end-modal" class="end-modal" role="dialog" aria-modal="true" aria-labelledby="end-title" hidden>
+  <header class="end-header">
+    <div class="title-wrap">
+      <span id="end-title" class="end-title">クリア！</span>
+      <!-- 絵文字演出 -->
+      <div class="emoji-sparkles" aria-hidden="true">
+        <span>💐</span><span>🎉</span><span>✨</span><span>🏆</span><span>🌟</span>
+      </div>
+    </div>
+    <button id="end-close" class="icon-btn" aria-label="閉じる">✕</button>
+  </header>
+
+  <div class="end-body">
+    <!-- スコア＆タイム -->
+    <div class="metrics">
+      <div class="metric">
+        <div class="label">スコア</div>
+        <div id="end-score" class="value">0</div>
+      </div>
+      <div class="metric">
+        <div class="label">タイム</div>
+        <div id="end-time" class="value">00:00.000</div>
+      </div>
+    </div>
+
+    <!-- 状態メッセージ（必要なものをJSで表示） -->
+    <div class="messages">
+      <!-- 不正検出 -->
+      <p id="fraud-msg" class="msg msg-error" hidden>
+        🚫 不正が検出されました。記録は保存されません。
+        <span id="fraud-reason" class="sub"></span>
+      </p>
+
+      <!-- ローカルランキング入り -->
+      <p id="local-rank-msg" class="msg msg-rank" hidden>
+        🏅 <span id="local-rank-text">自己歴代◯位の記録です！</span>
+      </p>
+
+      <!-- サーバ閾値達成（送信可） -->
+      <p id="global-rank-msg" class="msg msg-success" hidden>
+        🎊 全ユーザランキング Top100 に入りました！
+        記録をサーバに送信できます。
+      </p>
+    </div>
+  </div>
+
+  <footer class="end-footer">
+    <button id="play-again-btn" class="btn btn-secondary">もう一度プレイ</button>
+    <button id="send-score-btn" class="btn btn-primary" disabled>記録をサーバに送信</button>
+  </footer>
+</div>
