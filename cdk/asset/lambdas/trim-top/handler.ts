@@ -1,11 +1,7 @@
 // lambdas/trim-top/handler.ts
 import { ScheduledEvent } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import {
-  DynamoDBDocumentClient,
-  ScanCommand,
-  BatchWriteCommand,
-} from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, ScanCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 
 // CloudFront KeyValue Store 用 SDK（← ここがポイント）
 import {
@@ -36,7 +32,7 @@ const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || '25', 10);
 // ==== Helpers ====
 
 /** DDB -> ScoreItem（null/undefinedは入力段階で除外前提） */
-function toScoreItem(raw: any): ScoreItem {
+function toScoreItem(raw: Record<string, unknown>): ScoreItem {
   return {
     userId: String(raw.SK).replace(/^U#/, ''),
     userName: String(raw.userName),
@@ -50,7 +46,7 @@ function toScoreItem(raw: any): ScoreItem {
 /** distinct PK を列挙（必要なら prefix で絞る） */
 async function listDistinctPks(): Promise<string[]> {
   const pkSet = new Set<string>();
-  let lastKey: Record<string, any> | undefined;
+  let lastKey: Record<string, unknown> | undefined;
 
   do {
     const res = await ddb.send(
@@ -67,7 +63,7 @@ async function listDistinctPks(): Promise<string[]> {
           : {}),
       })
     );
-    res.Items?.forEach((it) => pkSet.add(String(it.PK)));
+    res.Items?.forEach(it => pkSet.add(String(it.PK)));
     lastKey = res.LastEvaluatedKey;
   } while (lastKey);
 
@@ -86,7 +82,7 @@ async function batchDeleteAll(requests: Array<{ PK: string; SK: string }>): Prom
     const chunk = requests.slice(i, i + BATCH_SIZE);
 
     let unprocessed: RequestMap = {
-      [TABLE_NAME]: chunk.map<DeleteRequest>((it) => ({
+      [TABLE_NAME]: chunk.map<DeleteRequest>(it => ({
         DeleteRequest: { Key: { PK: it.PK, SK: it.SK } },
       })),
     };
@@ -104,7 +100,7 @@ async function batchDeleteAll(requests: Array<{ PK: string; SK: string }>): Prom
 
       if (unprocessed[TABLE_NAME]?.length) {
         const delayMs = Math.min(200 * 2 ** attempt, 3000);
-        await new Promise((r) => setTimeout(r, delayMs));
+        await new Promise(r => setTimeout(r, delayMs));
         attempt++;
       }
     }
@@ -128,15 +124,11 @@ function buildOrderFromConfig(config: GameConfig | null): [string, 'asc' | 'desc
 
 /** TopN の最下位からしきい値を作る */
 function makeThresholdFromBottom(bottom: ScoreItem) {
-  return [
-    { score: bottom.score },
-    { timeMs: bottom.timeMs },
-    { updatedAt: bottom.updatedAt },
-  ];
+  return [{ score: bottom.score }, { timeMs: bottom.timeMs }, { updatedAt: bottom.updatedAt }];
 }
 
 /** CloudFront KVS に upsert（ETag を取得して IfMatch で PutKey） */
-async function upsertKvs(key: string, valueObj: any) {
+async function upsertKvs(key: string, valueObj: Record<string, unknown>) {
   if (!KVS_ARN) {
     console.warn('[trim-top] KVS_ARN not set; skip KVS update');
     return;
@@ -152,7 +144,7 @@ async function upsertKvs(key: string, valueObj: any) {
   await cf.send(
     new PutKeyCommand({
       KvsARN: KVS_ARN,
-      Key: key,      // ← DynamoDBのPKをそのままKeyとして使用
+      Key: key, // ← DynamoDBのPKをそのままKeyとして使用
       Value: payload,
       IfMatch: eTag,
     })
@@ -188,12 +180,12 @@ export const handler = async (_event: ScheduledEvent) => {
     // 3) 設定準拠で一発ソート → TopN 抽出
     const scores = rawItems.map(toScoreItem);
     const top = await sortAndTrimScores(scores, gameName); // config?.topN が優先
-    const keepSet = new Set(top.map((s) => s.userId));
+    const keepSet = new Set(top.map(s => s.userId));
 
     // 4) TopN以外を削除
     const toDelete = rawItems
-      .filter((r) => !keepSet.has(String(r.SK).replace(/^U#/, '')))
-      .map((r) => ({ PK: String(r.PK), SK: String(r.SK) }));
+      .filter(r => !keepSet.has(String(r.SK).replace(/^U#/, '')))
+      .map(r => ({ PK: String(r.PK), SK: String(r.SK) }));
 
     if (toDelete.length > 0) {
       await batchDeleteAll(toDelete);

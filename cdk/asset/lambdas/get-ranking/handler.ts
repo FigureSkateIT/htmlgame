@@ -10,7 +10,7 @@ const TABLE_NAME = process.env.TABLE_NAME!;
 const TOP_N_ENV = parseInt(process.env.TOP_N || '100', 10);
 
 /** DDBアイテム -> ScoreItem へ変換（nullは入力側で排除前提） */
-function toScoreItem(raw: any): ScoreItem {
+function toScoreItem(raw: Record<string, unknown>): ScoreItem {
   return {
     userId: String(raw.SK).replace(/^U#/, ''),
     userName: String(raw.userName),
@@ -21,9 +21,7 @@ function toScoreItem(raw: any): ScoreItem {
   };
 }
 
-export const handler = async (
-  event: APIGatewayProxyEventV2
-): Promise<APIGatewayProxyResultV2> => {
+export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
   try {
     const { gameId, period } = event.pathParameters ?? {};
     if (!gameId || !period) {
@@ -68,7 +66,7 @@ export const handler = async (
         topN: responseTopN,
         totalCandidates: scoreItems.length, // 取得候補の総数
         updatedAt: new Date().toISOString(),
-        as : 'GetRankingResponse',
+        as: 'GetRankingResponse',
       }),
     };
   } catch (err) {

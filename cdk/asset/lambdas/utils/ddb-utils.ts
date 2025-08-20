@@ -13,13 +13,13 @@ export function getDocClient(): DynamoDBDocumentClient {
 
 export interface QueryAllByPkOptions {
   tableName: string;
-  pageSize?: number;                 // 1回あたりの件数 (既定: env.PAGE_SIZE or 200)
-  consistentRead?: boolean;          // 既定 false
-  projectionExpression?: string;     // 取得属性を絞る
+  pageSize?: number; // 1回あたりの件数 (既定: env.PAGE_SIZE or 200)
+  consistentRead?: boolean; // 既定 false
+  projectionExpression?: string; // 取得属性を絞る
   expressionAttributeNames?: Record<string, string>; // Projectionで予約語がある場合など
-  maxItems?: number;                 // 総取得上限（安全弁）。未指定なら最後まで。
-  client?: DynamoDBDocumentClient;   // 別クライアントを使いたい場合
-  abortSignal?: AbortSignal;         // 中断したい場合
+  maxItems?: number; // 総取得上限（安全弁）。未指定なら最後まで。
+  client?: DynamoDBDocumentClient; // 別クライアントを使いたい場合
+  abortSignal?: AbortSignal; // 中断したい場合
 }
 
 /**
@@ -37,24 +37,26 @@ export async function queryAllByPk(
     maxItems,
     client = getDocClient(),
     abortSignal,
-  }: QueryAllByPkOptions,
-): Promise<any[]> {
-  const out: any[] = [];
-  let lastKey: Record<string, any> | undefined;
+  }: QueryAllByPkOptions
+): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  let lastKey: Record<string, unknown> | undefined;
 
   do {
     if (abortSignal?.aborted) break;
 
-    const res = await client.send(new QueryCommand({
-      TableName: tableName,
-      KeyConditionExpression: 'PK = :pk',
-      ExpressionAttributeValues: { ':pk': pk },
-      ExclusiveStartKey: lastKey,
-      Limit: pageSize,
-      ConsistentRead: consistentRead,
-      ProjectionExpression: projectionExpression,
-      ExpressionAttributeNames: expressionAttributeNames,
-    }));
+    const res = await client.send(
+      new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: 'PK = :pk',
+        ExpressionAttributeValues: { ':pk': pk },
+        ExclusiveStartKey: lastKey,
+        Limit: pageSize,
+        ConsistentRead: consistentRead,
+        ProjectionExpression: projectionExpression,
+        ExpressionAttributeNames: expressionAttributeNames,
+      })
+    );
 
     if (res.Items?.length) {
       if (maxItems && out.length + res.Items.length > maxItems) {

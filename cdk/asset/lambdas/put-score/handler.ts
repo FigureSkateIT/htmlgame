@@ -8,20 +8,22 @@ import type { ScoreItem } from '../types';
 import { isBetterScore } from '../utils/score-sorter'; // ← これを使う
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-const cf  = new CloudFrontClient({});
+const cf = new CloudFrontClient({});
 
-const TABLE_NAME       = process.env.TABLE_NAME!;
+const TABLE_NAME = process.env.TABLE_NAME!;
 const EDGE_AUTH_HEADER = process.env.EDGE_AUTH_HEADER || 'x-edge-auth';
-const CF_DIST_ID       = process.env.CF_DIST_ID || undefined;
+const CF_DIST_ID = process.env.CF_DIST_ID || undefined;
 const EDGE_AUTH_VALUE = process.env.EDGE_AUTH_VALUE || 'valid-edge-request';
 
-
-
-
-function toScoreItemFromInputs(userId: string, userName: string, score: number, timeMs: number): ScoreItem {
+function toScoreItemFromInputs(
+  userId: string,
+  userName: string,
+  score: number,
+  timeMs: number
+): ScoreItem {
   return { userId, userName, score, timeMs, updatedAt: new Date().toISOString() };
 }
-function toScoreItemFromDdb(raw: any | undefined): ScoreItem | null {
+function toScoreItemFromDdb(raw: Record<string, unknown> | undefined): ScoreItem | null {
   if (!raw) return null;
   return {
     userId: String(raw.SK).replace(/^U#/, ''),
@@ -45,15 +47,15 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     if (!headers[EDGE_AUTH_HEADER.toLowerCase()]) {
       return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden' }) };
     }
-    if (headers[EDGE_AUTH_HEADER.toLowerCase()] !== EDGE_AUTH_VALUE) { 
+    if (headers[EDGE_AUTH_HEADER.toLowerCase()] !== EDGE_AUTH_VALUE) {
       return { statusCode: 403, body: JSON.stringify({ error: 'Forbidden' }) };
     }
     // 2) 入力
     const { gameId, period, userId } = event.pathParameters ?? {};
-    const score  = parseInt(headers['x-score']   || '0', 10);
-    const player =        headers['x-player']    || '';
+    const score = parseInt(headers['x-score'] || '0', 10);
+    const player = headers['x-player'] || '';
     const timeMs = parseInt(headers['x-time-ms'] || '0', 10);
-    const updatedAt =        headers['x-updated-at']    || '';
+    const updatedAt = headers['x-updated-at'] || '';
 
     if (!gameId || !period || !userId || !player || !Number.isFinite(score) || !updatedAt) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Missing required parameters' }) };
@@ -63,7 +65,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     const sanitizedGameId = String(gameId).replace(/[^a-zA-Z0-9-_]/g, '');
     const sanitizedPeriod = String(period).replace(/[^a-zA-Z0-9-_]/g, '');
     const sanitizedUserId = String(userId).replace(/[^a-zA-Z0-9-_]/g, '');
-    
+
     const PK = `G#${sanitizedGameId}#P#${sanitizedPeriod}`;
     const SK = `U#${sanitizedUserId}`;
 
@@ -74,31 +76,36 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     // 4) 新記録判定（← ここを isBetterScore に置き換え）
     const candidate = toScoreItemFromInputs(userId, player, score, timeMs);
     candidate.updatedAt = updatedAt;
-    const accepted  = await isBetterScore(candidate, existing, gameId); // gameName=gameId 前提
+    const accepted = await isBetterScore(candidate, existing, gameId); // gameName=gameId 前提
 
     // 5) 採用時のみ更新 & Invalidation
     if (accepted) {
-      await ddb.send(new UpdateCommand({
-        TableName: TABLE_NAME,
-        Key: { PK, SK },
-        UpdateExpression: 'SET score=:score, timeMs=:timeMs, userName=:userName, updatedAt=:updatedAt',
-        ExpressionAttributeValues: {
-          ':score': candidate.score,
-          ':timeMs': candidate.timeMs,
-          ':userName': candidate.userName,
-          ':updatedAt': candidate.updatedAt,
-        },
-      }));
+      await ddb.send(
+        new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: { PK, SK },
+          UpdateExpression:
+            'SET score=:score, timeMs=:timeMs, userName=:userName, updatedAt=:updatedAt',
+          ExpressionAttributeValues: {
+            ':score': candidate.score,
+            ':timeMs': candidate.timeMs,
+            ':userName': candidate.userName,
+            ':updatedAt': candidate.updatedAt,
+          },
+        })
+      );
 
       if (CF_DIST_ID) {
         try {
-          await cf.send(new CreateInvalidationCommand({
-            DistributionId: CF_DIST_ID,
-            InvalidationBatch: {
-              Paths: { Quantity: 1, Items: [`/api/ranking/${gameId}/${period}*`] },
-              CallerReference: `score-update-${Date.now()}`,
-            },
-          }));
+          await cf.send(
+            new CreateInvalidationCommand({
+              DistributionId: CF_DIST_ID,
+              InvalidationBatch: {
+                Paths: { Quantity: 1, Items: [`/api/ranking/${gameId}/${period}*`] },
+                CallerReference: `score-update-${Date.now()}`,
+              },
+            })
+          );
         } catch (err) {
           console.error('Invalidation failed:', err);
         }
@@ -111,9 +118,13 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       body: JSON.stringify({
         accepted,
         rankChanged: accepted,
-        previous: existing ? { score: existing.score, timeMs: existing.timeMs, updatedAt: existing.updatedAt } : null,
-        current:  accepted ? { score: candidate.score, timeMs: candidate.timeMs, updatedAt: candidate.updatedAt } : existing,
-        as : 'PutScoreResponse',
+        previous: existing
+          ? { score: existing.score, timeMs: existing.timeMs, updatedAt: existing.updatedAt }
+          : null,
+        current: accepted
+          ? { score: candidate.score, timeMs: candidate.timeMs, updatedAt: candidate.updatedAt }
+          : existing,
+        as: 'PutScoreResponse',
       }),
     };
   } catch (err) {

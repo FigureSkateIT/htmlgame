@@ -24,7 +24,10 @@ const nodeOpts: lambdaNode.NodejsFunctionProps = {
 };
 
 export function createLambdaFunctions(scope: Construct, props: LambdaFunctionsProps) {
-  const s3BucketName = ssm.StringParameter.valueFromLookup(scope, CONSTANTS.SSM_PARAMETERS.S3_BUCKET);
+  const s3BucketName = ssm.StringParameter.valueFromLookup(
+    scope,
+    CONSTANTS.SSM_PARAMETERS.S3_BUCKET
+  );
   const putScoreLogGroup = new logs.LogGroup(scope, 'PutScoreLogGroup', {
     retention: logs.RetentionDays.THREE_MONTHS,
     removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -187,12 +190,15 @@ export function createLambdaFunctions(scope: Construct, props: LambdaFunctionsPr
     },
   });
 
-  NagSuppressions.addResourceSuppressions([putScoreRole, getRankingRole, trimTopRole], [
-    {
-      id: 'AwsSolutions-IAM5',
-      reason: 'CloudFront操作に必要なワイルドカード権限',
-    },
-  ]);
+  NagSuppressions.addResourceSuppressions(
+    [putScoreRole, getRankingRole, trimTopRole],
+    [
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'CloudFront操作に必要なワイルドカード権限',
+      },
+    ]
+  );
 
   return { putScoreFn, getRankingFn, trimTopFn };
 }

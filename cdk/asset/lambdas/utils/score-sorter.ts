@@ -16,15 +16,15 @@ const CACHE_TTL_MS = 30 * 1000; // 30秒
 export async function loadGameConfig(gameName: string): Promise<GameConfig | null> {
   const now = Date.now();
 
-  if (!configCache || (now - configCache.timestamp) > CACHE_TTL_MS) {
+  if (!configCache || now - configCache.timestamp > CACHE_TTL_MS) {
     const bucket = process.env.S3_BUCKET;
     const key = process.env.GAME_CONFIG_PATH;
-    
+
     if (!bucket || !key) {
       console.error('Missing required environment variables: S3_BUCKET or GAME_CONFIG_PATH');
       return null;
     }
-    
+
     try {
       const res = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
       if (!res.Body) {
@@ -47,7 +47,7 @@ export async function loadGameConfig(gameName: string): Promise<GameConfig | nul
 
 type CompiledRule =
   | { by: 'score' | 'timeMs'; mult: 1 | -1; kind: 'number' }
-  | { by: 'updatedAt';         mult: 1 | -1; kind: 'string' };
+  | { by: 'updatedAt'; mult: 1 | -1; kind: 'string' };
 
 /** ルールを事前コンパイル（昇順=+1 / 降順=-1、キー型も固定） */
 function compileRules(rules: SortRule[]): CompiledRule[] {
@@ -111,7 +111,7 @@ export async function sortAndTrimScores(
     console.error(`Game config not found for: ${gameName}`);
     // フォールバック（最大100件想定）
     return scoreItems.slice(0, 100);
-    }
+  }
   const comparator = getComparator(gameName, config);
   const sorted = [...scoreItems].sort(comparator);
   return sorted.slice(0, config.topN);
