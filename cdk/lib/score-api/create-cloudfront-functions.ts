@@ -4,8 +4,13 @@ import * as cr from 'aws-cdk-lib/custom-resources';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { NagSuppressions } from 'cdk-nag';
 import { Construct } from 'constructs';
+import { createKvsRotationRole } from './create-kvs-rotation-role';
 
-export function createCloudFrontFunctions(scope: Construct) {
+export interface CloudFrontFunctionsProps {
+  githubRepo: string;
+}
+
+export function createCloudFrontFunctions(scope: Construct, props: CloudFrontFunctionsProps) {
   const kvs = new cloudfront.KeyValueStore(scope, 'CfgThrKVS', {
     keyValueStoreName: 'cfgthr',
   });
@@ -31,7 +36,13 @@ export function createCloudFrontFunctions(scope: Construct) {
     keyValueStore: kvs,
   });
 
-  return { kvs, cfGetStart, cfGetEnd, cfValidate };
+  // KVS rotation role for GitHub Actions
+  const kvsRotationRole = createKvsRotationRole(scope, {
+    githubRepo: props.githubRepo,
+    kvs,
+  });
+
+  return { kvs, cfGetStart, cfGetEnd, cfValidate, kvsRotationRole };
 }
 
 export interface CloudFrontAssociationProps {

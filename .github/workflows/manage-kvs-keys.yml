@@ -16,42 +16,45 @@ on:
         default: 'false'
         type: boolean
 
-permissions:
-  id-token: write
-  contents: read
+env:
+  AWS_DEFAULT_REGION: us-east-1
+  KVS_ROTATION_ROLE: htmlgame-kvs-rotation-role-for-github
+  SSM_KVS_ARN: /htmlgame/score-api/kvs-arn
 
 jobs:
   manage-keys:
     runs-on: ubuntu-latest
     
+    permissions:
+      contents: read
+      id-token: write  # OIDCでAssumeRoleするために必要
+    
     steps:
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.KVS_ROTATION_ROLE }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
           
-      - name: Get KVS ARN from SSM
-        id: get-kvs-arn
+      - name: Read SSM params
+        id: ssm
         run: |
-          KVS_ARN=$(aws ssm get-parameter --name "/htmlgame/score-api/kvs-arn" --query Parameter.Value --output text 2>/dev/null || echo "")
+          KVS_ARN=$(aws ssm get-parameter --name '${{ env.SSM_KVS_ARN }}' --query 'Parameter.Value' --output text 2>/dev/null || echo "")
           if [ -z "$KVS_ARN" ]; then
             echo "KVS ARN not found in SSM. Skipping key management."
             echo "kvs_exists=false" >> $GITHUB_OUTPUT
           else
-            echo "kvs_arn=$KVS_ARN" >> $GITHUB_OUTPUT
+            echo "KVS_ARN=$KVS_ARN" >> $GITHUB_ENV
             echo "kvs_exists=true" >> $GITHUB_OUTPUT
             echo "Retrieved KVS ARN: $KVS_ARN"
           fi
           
       - name: Check existing keys and determine action
-        if: steps.get-kvs-arn.outputs.kvs_exists == 'true'
+        if: steps.ssm.outputs.kvs_exists == 'true'
         id: check-keys
-        env:
-          KVS_ARN: ${{ steps.get-kvs-arn.outputs.kvs_arn }}
         run: |
           set +e
-          aws cloudfront-keyvaluestore get-key --kvs-arn "$KVS_ARN" --key k_current >/dev/null 2>&1
+          aws cloudfront-keyvaluestore get-key --kvs-arn "${{ env.KVS_ARN }}" --key k_current >/dev/null 2>&1
           KEY_EXISTS=$?
           set -e
           
@@ -70,29 +73,28 @@ jobs:
           fi
           
       - name: Initialize or rotate keys
-        if: steps.get-kvs-arn.outputs.kvs_exists == 'true'
+        if: steps.ssm.outputs.kvs_exists == 'true'
         env:
-          KVS_ARN: ${{ steps.get-kvs-arn.outputs.kvs_arn }}
           ACTION: ${{ steps.check-keys.outputs.action }}
         run: |
           set -euo pipefail
           
-          echo "Starting key $ACTION for KVS: $KVS_ARN"
+          echo "Starting key $ACTION for KVS: ${{ env.KVS_ARN }}"
           
           # ETag取得
           ETAG=$(aws cloudfront-keyvaluestore describe-key-value-store \
-            --kvs-arn "$KVS_ARN" --query ETag --output text)
+            --kvs-arn "${{ env.KVS_ARN }}" --query ETag --output text)
           echo "Current ETag: $ETAG"
           
           if [ "$ACTION" = "rotate" ]; then
             # 既存の鍵をローテーション
             CURRENT_KEY=$(aws cloudfront-keyvaluestore get-key \
-              --kvs-arn "$KVS_ARN" --key k_current --query Value --output text)
+              --kvs-arn "${{ env.KVS_ARN }}" --key k_current --query Value --output text)
             echo "Retrieved current key for rotation"
             
             # 現在の鍵をprevに移動
             RESP=$(aws cloudfront-keyvaluestore put-key \
-              --kvs-arn "$KVS_ARN" --key k_prev --value "$CURRENT_KEY" --if-match "$ETAG")
+              --kvs-arn "${{ env.KVS_ARN }}" --key k_prev --value "$CURRENT_KEY" --if-match "$ETAG")
             ETAG=$(echo "$RESP" | jq -r .ETag)
             echo "Moved current key to prev, new ETag: $ETAG"
           fi
@@ -103,6 +105,6 @@ jobs:
           
           # 新しい鍵をcurrentに設定
           aws cloudfront-keyvaluestore put-key \
-            --kvs-arn "$KVS_ARN" --key k_current --value "$NEW_KEY" --if-match "$ETAG"
+            --kvs-arn "${{ env.KVS_ARN }}" --key k_current --value "$NEW_KEY" --if-match "$ETAG"
           
           echo "Key $ACTION completed successfully"

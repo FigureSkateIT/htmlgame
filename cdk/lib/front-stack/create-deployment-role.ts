@@ -23,7 +23,10 @@ export function createDeploymentRole(scope: Construct, props: DeploymentRoleProp
       `arn:aws:iam::${stack.account}:oidc-provider/token.actions.githubusercontent.com`,
       {
         StringLike: {
-          'token.actions.githubusercontent.com:sub': `repo:${props.githubRepo}:ref:refs/heads/main`,
+          'token.actions.githubusercontent.com:sub': [
+            `repo:${props.githubRepo}:ref:refs/heads/main`,
+            `repo:${props.githubRepo}:ref:refs/heads/dev`, // devブランチも許可
+          ]
         },
       }
     ),

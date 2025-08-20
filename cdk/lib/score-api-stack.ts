@@ -31,7 +31,9 @@ export class ScoreApiStack extends cdk.Stack {
     });
 
     // CloudFront Functions 作成
-    const { kvs, cfGetStart, cfGetEnd, cfValidate } = createCloudFrontFunctions(this);
+    const { kvs, cfGetStart, cfGetEnd, cfValidate } = createCloudFrontFunctions(this, {
+      githubRepo: process.env.GITHUB_REPOSITORY || 'default/repo',
+    });
 
     // 既存 CloudFront Distribution ID を取得
     const distId = readFrontCfDistId(this);
